@@ -19,7 +19,7 @@
     [super viewDidLoad];
     // Do any additional setup after loading the view, typically from a nib.
     
- [NetworkTool GET:@"www.baidu.com" Params:nil Success:^(id requestData) {
+ [NetworkTool GET:@"www.hao123.com" Params:nil Success:^(id requestData) {
      NSLog(@"%@",requestData);
  } Failure:^(NSInteger code, NSError *error) {
      

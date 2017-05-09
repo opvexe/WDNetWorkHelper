@@ -299,6 +299,8 @@ static NetworkTool *manager = nil;
     } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
           failure([error code],error);
     }];
+    
+    [dataTask resume];
     return dataTask;
 }
 
