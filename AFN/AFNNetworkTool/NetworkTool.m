@@ -97,11 +97,14 @@ static NetworkTool *manager = nil;
 +(AFHTTPSessionManager *)manager{
     
     AFHTTPSessionManager *manager = [AFHTTPSessionManager manager];
-    
     manager.responseSerializer.stringEncoding = NSUTF8StringEncoding;
     manager.requestSerializer = [AFHTTPRequestSerializer serializer];
+    [manager.requestSerializer willChangeValueForKey:@"timeoutInterval"];
     manager.requestSerializer.timeoutInterval = time_out;
+    [manager.requestSerializer didChangeValueForKey:@"timeoutInterval"];
     manager.responseSerializer.acceptableContentTypes = [NSSet setWithArray:@[@"application/json",@"text/html",@"text/json",@"text/plain",@"text/javascript",@"text/xml",@"image/*"]];
+    //    [manager setSecurityPolicy:[self customSecurityPolicy]]; 设置证书
+    //    [self  checkCredential:manager]; //校验证书
     manager.operationQueue.maxConcurrentOperationCount = 6;
     
     return manager;
@@ -285,7 +288,7 @@ static NetworkTool *manager = nil;
     NSLog(@"%@ = %@",url,[self print:requestUrl params:requestParams]);
     
     dataTask = [manager POST:requestUrl parameters:requestParams  constructingBodyWithBlock:^(id<AFMultipartFormData>  _Nonnull formData) {
-
+        
         //压缩-添加-上传图片
         [images enumerateObjectsUsingBlock:^(UIImage * _Nonnull image, NSUInteger idx, BOOL * _Nonnull stop) {
             
@@ -293,11 +296,11 @@ static NetworkTool *manager = nil;
             [formData appendPartWithFileData:imageData name:name fileName:[NSString stringWithFormat:@"%@%lu.%@",fileName,(unsigned long)idx,mimeType?mimeType:@"jpeg"] mimeType:[NSString stringWithFormat:@"image/%@",mimeType?mimeType:@"jpeg"]];
         }];
     } progress:^(NSProgress * _Nonnull uploadProgress) {
-         progress ? progress(uploadProgress) : nil;
+        progress ? progress(uploadProgress) : nil;
     } success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
-          success(responseObject);
+        success(responseObject);
     } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
-          failure([error code],error);
+        failure([error code],error);
     }];
     
     [dataTask resume];
@@ -327,30 +330,30 @@ static NetworkTool *manager = nil;
     avAssetExport.outputURL = [NSURL URLWithString:videoWritePath];
     
     avAssetExport.outputFileType =  AVFileTypeMPEG4;
-
-     [avAssetExport exportAsynchronouslyWithCompletionHandler:^{
+    
+    [avAssetExport exportAsynchronouslyWithCompletionHandler:^{
         
-         switch ([avAssetExport status]) {
-             case AVAssetExportSessionStatusCompleted:
-             {
-                  AFHTTPSessionManager * manager = [AFHTTPSessionManager manager];
-                 [manager POST:URL parameters:parameters constructingBodyWithBlock:^(id<AFMultipartFormData>  _Nonnull formData) {
-                     
-                      [formData appendPartWithFileURL:[NSURL fileURLWithPath:videoWritePath] name:@"video" fileName:videoWritePath mimeType:@"video/mpeg4" error:nil];
-                 } progress:^(NSProgress * _Nonnull uploadProgress) {
-                     progress?progress(uploadProgress):nil;
-                 } success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
-                      success(responseObject);
-                 } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
-                      failure([error code],error);
-                 }];
-             }
-                 break;
-                 
-             default:
-                 break;
-         }
-     }];
+        switch ([avAssetExport status]) {
+            case AVAssetExportSessionStatusCompleted:
+            {
+                AFHTTPSessionManager * manager = [AFHTTPSessionManager manager];
+                [manager POST:URL parameters:parameters constructingBodyWithBlock:^(id<AFMultipartFormData>  _Nonnull formData) {
+                    
+                    [formData appendPartWithFileURL:[NSURL fileURLWithPath:videoWritePath] name:@"video" fileName:videoWritePath mimeType:@"video/mpeg4" error:nil];
+                } progress:^(NSProgress * _Nonnull uploadProgress) {
+                    progress?progress(uploadProgress):nil;
+                } success:^(NSURLSessionDataTask * _Nonnull task, id  _Nullable responseObject) {
+                    success(responseObject);
+                } failure:^(NSURLSessionDataTask * _Nullable task, NSError * _Nonnull error) {
+                    failure([error code],error);
+                }];
+            }
+                break;
+                
+            default:
+                break;
+        }
+    }];
 }
 //网络监听（用于检测网络是否可以链接。此方法最好放于AppDelegate中，可以使程序打开便开始检测网络）
 - (void)reachabilityManager
@@ -385,31 +388,99 @@ static NetworkTool *manager = nil;
     //    [mgr.reachabilityManager stopMonitoring];
 }
 
-+ (AFSecurityPolicy*)customSecurityPolicy
-{
++ (AFSecurityPolicy*)customSecurityPolicy{
     
-    //证书路径
-    // /先导入证书
-    NSString *cerPath = [[NSBundle mainBundle] pathForResource:@"" ofType:@"cer"];//证书的路径
-    NSData *certData = [NSData dataWithContentsOfFile:cerPath];
-    
-    // AFSSLPinningModeCertificate 使用证书验证模式
     AFSecurityPolicy *securityPolicy = [AFSecurityPolicy policyWithPinningMode:AFSSLPinningModeCertificate];
-    
-    // allowInvalidCertificates 是否允许无效证书（也就是自建的证书），默认为NO
-    // 如果是需要验证自建证书，需要设置为YES
-    securityPolicy.allowInvalidCertificates = YES;
-    
-    //validatesDomainName 是否需要验证域名，默认为YES；
-    //假如证书的域名与你请求的域名不一致，需把该项设置为NO；如设成NO的话，即服务器使用其他可信任机构颁发的证书，也可以建立连接，这个非常危险，建议打开。
-    //置为NO，主要用于这种情况：客户端请求的是子域名，而证书上的是另外一个域名。因为SSL证书上的域名是独立的，假如证书上注册的域名是www.google.com，那么mail.google.com是无法验证通过的；当然，有钱可以注册通配符的域名*.google.com，但这个还是比较贵的。
-    //如置为NO，建议自己添加对应域名的校验逻辑。
-    securityPolicy.validatesDomainName = NO;
-    
-    securityPolicy.pinnedCertificates = @[certData];
+    NSString * cerPath = [[NSBundle mainBundle] pathForResource:@"server" ofType:@"cer"];     //导入证书
+    NSData *certData = [NSData dataWithContentsOfFile:cerPath];
+    NSSet   *dataSet = [NSSet setWithArray:@[certData]];
+    [securityPolicy setAllowInvalidCertificates:YES];//是否允许使用自签名证书
+    [securityPolicy setPinnedCertificates:dataSet];//设置去匹配服务端证书验证的证书
+    [securityPolicy setValidatesDomainName:NO];//是否需要验证域名，默认YES
     
     return securityPolicy;
 }
 
+#pragma mark 校验证书
+- (void)checkCredential:(AFURLSessionManager *)manager
+{
+    [manager setSessionDidBecomeInvalidBlock:^(NSURLSession * _Nonnull session, NSError * _Nonnull error) {
+    }];
+    __weak typeof(manager)weakManager = manager;
+    [manager setSessionDidReceiveAuthenticationChallengeBlock:^NSURLSessionAuthChallengeDisposition(NSURLSession*session, NSURLAuthenticationChallenge *challenge, NSURLCredential *__autoreleasing*_credential) {
+        NSURLSessionAuthChallengeDisposition disposition = NSURLSessionAuthChallengePerformDefaultHandling;
+        __autoreleasing NSURLCredential *credential =nil;
+        NSLog(@"authenticationMethod=%@",challenge.protectionSpace.authenticationMethod);
+        //判断服务器要求客户端的接收认证挑战方式，如果是NSURLAuthenticationMethodServerTrust则表示去检验服务端证书是否合法，NSURLAuthenticationMethodClientCertificate则表示需要将客户端证书发送到服务端进行检验
+        if([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodServerTrust]) {
+            // 基于客户端的安全策略来决定是否信任该服务器，不信任的话，也就没必要响应挑战
+            if([weakManager.securityPolicy evaluateServerTrust:challenge.protectionSpace.serverTrust forDomain:challenge.protectionSpace.host]) {
+                // 创建挑战证书（注：挑战方式为UseCredential和PerformDefaultHandling都需要新建挑战证书）
+                credential = [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust];
+                // 确定挑战的方式
+                if (credential) {
+                    //证书挑战  设计policy,none，则跑到这里
+                    disposition = NSURLSessionAuthChallengeUseCredential;
+                } else {
+                    disposition = NSURLSessionAuthChallengePerformDefaultHandling;
+                }
+            } else {
+                disposition = NSURLSessionAuthChallengeCancelAuthenticationChallenge;
+            }
+        } else { //只有双向认证才会走这里
+            // client authentication
+            SecIdentityRef identity = NULL;
+            SecTrustRef trust = NULL;
+            NSString *p12 = [[NSBundle mainBundle] pathForResource:@"client"ofType:@"p12"];
+            NSFileManager *fileManager =[NSFileManager defaultManager];
+            
+            if(![fileManager fileExistsAtPath:p12])
+            {
+                NSLog(@"client.p12:not exist");
+            }
+            else
+            {
+                NSData *PKCS12Data = [NSData dataWithContentsOfFile:p12];
+                
+                if ([self extractIdentity:&identity andTrust:&trust fromPKCS12Data:PKCS12Data])
+                {
+                    SecCertificateRef certificate = NULL;
+                    SecIdentityCopyCertificate(identity, &certificate);
+                    const void*certs[] = {certificate};
+                    CFArrayRef certArray =CFArrayCreate(kCFAllocatorDefault, certs,1,NULL);
+                    credential =[NSURLCredential credentialWithIdentity:identity certificates:(__bridge  NSArray*)certArray persistence:NSURLCredentialPersistencePermanent];
+                    disposition =NSURLSessionAuthChallengeUseCredential;
+                }
+            }
+        }
+        *_credential = credential;
+        return disposition;
+    }];
+}
+
+#pragma mark 读取p12的密码
+- (BOOL)extractIdentity:(SecIdentityRef*)outIdentity andTrust:(SecTrustRef *)outTrust fromPKCS12Data:(NSData *)inPKCS12Data {
+    OSStatus securityError = errSecSuccess;
+    //client certificate password
+    NSDictionary*optionsDictionary = [NSDictionary dictionaryWithObject:@"csykum812"
+                                                                 forKey:(__bridge id)kSecImportExportPassphrase];
+    
+    CFArrayRef items = CFArrayCreate(NULL, 0, 0, NULL);
+    securityError = SecPKCS12Import((__bridge CFDataRef)inPKCS12Data,(__bridge CFDictionaryRef)optionsDictionary,&items);
+    
+    if(securityError == 0) {
+        CFDictionaryRef myIdentityAndTrust =CFArrayGetValueAtIndex(items,0);
+        const void*tempIdentity =NULL;
+        tempIdentity= CFDictionaryGetValue (myIdentityAndTrust,kSecImportItemIdentity);
+        *outIdentity = (SecIdentityRef)tempIdentity;
+        const void*tempTrust =NULL;
+        tempTrust = CFDictionaryGetValue(myIdentityAndTrust,kSecImportItemTrust);
+        *outTrust = (SecTrustRef)tempTrust;
+    } else {
+        NSLog(@"Failedwith error code %d",(int)securityError);
+        return NO;
+    }
+    return YES;
+}
 
 @end
